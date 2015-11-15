@@ -6,3 +6,6 @@
 - Fixed site changes
 1.0.3 / 2.0.3
 - Fixed geoblocking bug
+2.0.5
+- Fixed show/video listing
+- Fixed video playback

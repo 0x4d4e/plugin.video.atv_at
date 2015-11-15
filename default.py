@@ -9,9 +9,12 @@ import xbmcplugin
 import xbmcgui
 import xbmcaddon
 
+#addon = xbmcaddon.Addon()
+#addonID = addon.getAddonInfo('id')
+addonID = 'plugin.video.atv_at'
+addon = xbmcaddon.Addon(id=addonID)
 socket.setdefaulttimeout(30)
 pluginhandle = int(sys.argv[1])
-addon = xbmcaddon.Addon(id='plugin.video.atv_at')
 translation = addon.getLocalizedString
 forceViewMode = addon.getSetting("forceViewMode") == "true"
 viewMode = str(addon.getSetting("viewMode"))
@@ -20,14 +23,14 @@ urlMain = "http://atv.at"
 
 def index():
     content = getUrl(urlMain+"/mediathek")
-    spl = content.split('<li data-time=')
+    spl = content.split('class="program"')
     for i in range(1, len(spl), 1):
         entry = spl[i]
-        match = re.compile('title="(.+?)"', re.DOTALL).findall(entry)
+        match = re.compile('alt="(.+?)"', re.DOTALL).findall(entry)
         title = match[0]
         title = cleanTitle(title)
         match = re.compile('href="(.+?)"', re.DOTALL).findall(entry)
-        url = urlMain+match[0]
+        url = match[0]
         match = re.compile('src="(.+?)"', re.DOTALL).findall(entry)
         thumb = match[0]
         addDir(title, url, 'listVideos', thumb)
@@ -35,52 +38,45 @@ def index():
 
 
 def listVideos(url):
-    if urlMain+"/contentset/" in url:
-        content = getUrl(url)
-        match = re.compile('contentset_id%22%3A(.+?)%', re.DOTALL).findall(content)
-        id1 = match[0]
-        match = re.compile('active_playlist_id%22%3A(.+?)%', re.DOTALL).findall(content)
-        id2 = match[0]
-        url = urlMain+"/player_playlist_page_json/"+id1+"/"+id2+"/1"
     content = getUrl(url)
-    match = re.compile('"(.+?)":', re.DOTALL).findall(content)
-    currentPage = int(match[0])
-    match = re.compile('"total_page_count":(.+?)}', re.DOTALL).findall(content)
-    maxPage = int(match[0])
-    spl = content.split('"title"')
+    contentMain = content
+    if 'class="teaser_list"' in content:
+        content = content[content.find('class="teaser_list"'):]
+        content = content[:content.find('</ul>')]
+    spl = content.split('class="teaser"')
     for i in range(1, len(spl), 1):
         entry = spl[i]
-        match = re.compile('"(.+?)","subtitle":"(.+?)"', re.DOTALL).findall(entry)
-        if match[0][1].find('",') == 0:
-            title = match[0][0]
-        else:
-            title = match[0][0]+" - "+match[0][1]
-        title = cleanTitle(title)
-        match = re.compile('"image_url":"(.+?)"', re.DOTALL).findall(entry)
-        thumb = match[0].replace("\\", "")
-        addLink(title, entry, 'playVideo', thumb)
-    if currentPage < maxPage:
-        addDir(translation(30001)+" ("+str(currentPage+1)+")", url[:len(url)-1]+str(currentPage+1), 'listVideos', "")
+        match = re.compile('href="(.+?)"', re.DOTALL).findall(entry)
+        url = match[0]
+        match = re.compile('class="title">(.+?)<', re.DOTALL).findall(entry)
+        title = cleanTitle(match[0])
+        match = re.compile('src="(.+?)"', re.DOTALL).findall(entry)
+        thumb = match[0].replace("&amp;","&")
+        addLink(title, url, 'playVideo', thumb)
+    match = re.compile('jsb_MoreTeasersButton" data-jsb="url=(.+?)"', re.DOTALL).findall(contentMain)
+    if match:
+        addDir(translation(30001), urllib.unquote_plus(match[0]), 'listVideos', "")
     xbmcplugin.endOfDirectory(pluginhandle)
     if forceViewMode:
         xbmc.executebuiltin('Container.SetViewMode('+viewMode+')')
 
 
-def playVideo(entry):
-    entry = entry[entry.find("contentset_id"):]
-    matchUrls = re.compile('"url":"(.+?)"', re.DOTALL).findall(entry)
-    req = urllib2.Request(matchUrls[0].replace("\\", ""))
+def playVideo(url):
+    content = getUrl(url)
+    matchUrls = re.compile('streaming&.+?src&.+?http:(.+?)&', re.DOTALL).findall(content)
+    req = urllib2.Request("http:"+matchUrls[0].replace("\\", ""))
     try:
         urllib2.urlopen(req)
         if len(matchUrls) > 1:
             urlFull = "stack://"
             for url in matchUrls:
-                urlFull += url.replace("\\", "")+" , "
+                if "m3u8" in url:
+                    urlFull += "http:"+url.replace("\\", "")+" , "
             urlFull = urlFull[:-3]
             listitem = xbmcgui.ListItem(path=urlFull)
             xbmcplugin.setResolvedUrl(pluginhandle, True, listitem)
         elif len(matchUrls) == 1:
-            urlFull = matchUrls[0].replace("\\", "")
+            urlFull = "http:"+matchUrls[0].replace("\\", "")
             listitem = xbmcgui.ListItem(path=urlFull)
             xbmcplugin.setResolvedUrl(pluginhandle, True, listitem)
     except:
