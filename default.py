@@ -9,6 +9,7 @@ import xbmcplugin
 import xbmcgui
 import xbmcaddon
 
+
 #addon = xbmcaddon.Addon()
 #addonID = addon.getAddonInfo('id')
 addonID = 'plugin.video.atv_at'
@@ -33,16 +34,34 @@ def index():
         url = match[0]
         match = re.compile('src="(.+?)"', re.DOTALL).findall(entry)
         thumb = match[0]
-        addDir(title, url, 'listVideos', thumb)
+        if 'staffel' in url and not 'staffel-1/' in url:
+            addDir(title, url, 'listSeasons', thumb)
+        else:
+            addDir(title, url, 'listVideos', thumb)
     xbmcplugin.endOfDirectory(pluginhandle)
 
 
-def listVideos(url):
+def listSeasons(url):
+    content = getUrl(url)
+    if 'select' in content:
+        content = content[content.find('<select'):content.find('</select>')]
+        seasons = re.compile('.*<option.*value="(.+?)".*>(.+?)<.*').findall(content)
+        for season in seasons:
+            addDir(season[1], season[0], 'listVideos', '')
+        xbmcplugin.endOfDirectory(pluginhandle)
+    else:
+        listVideos(url)
+
+
+def listVideos(url, endDirectory=True):
     content = getUrl(url)
     contentMain = content
+    if 'Alle Folgen' in content:
+        content = content[content.find('Alle Folgen'):]
     if 'class="teaser_list"' in content:
         content = content[content.find('class="teaser_list"'):]
         content = content[:content.find('</ul>')]
+
     spl = content.split('class="teaser"')
     for i in range(1, len(spl), 1):
         entry = spl[i]
@@ -55,10 +74,12 @@ def listVideos(url):
         addLink(title, url, 'playVideo', thumb)
     match = re.compile('jsb_MoreTeasersButton" data-jsb="url=(.+?)"', re.DOTALL).findall(contentMain)
     if match:
-        addDir(translation(30001), urllib.unquote_plus(match[0]), 'listVideos', "")
-    xbmcplugin.endOfDirectory(pluginhandle)
-    if forceViewMode:
-        xbmc.executebuiltin('Container.SetViewMode('+viewMode+')')
+        listVideos(urllib.unquote(match[0]), False)
+
+    if endDirectory:
+        xbmcplugin.endOfDirectory(pluginhandle)
+        if forceViewMode:
+            xbmc.executebuiltin('Container.SetViewMode('+viewMode+')')
 
 
 def playVideo(url):
@@ -137,6 +158,8 @@ if isinstance(url, type(str())):
 
 if mode == 'listVideos':
     listVideos(url)
+elif mode == 'listSeasons':
+    listSeasons(url)
 elif mode == 'playVideo':
     playVideo(url)
 else:
