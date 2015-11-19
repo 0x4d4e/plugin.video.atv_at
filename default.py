@@ -34,7 +34,7 @@ def index():
         url = match[0]
         match = re.compile('src="(.+?)"', re.DOTALL).findall(entry)
         thumb = match[0]
-        if 'staffel' in url and not 'staffel-1/' in url:
+        if 'staffel' in url and 'staffel-1/' not in url:
             addDir(title, url, 'listSeasons', thumb)
         else:
             addDir(title, url, 'listVideos', thumb)
@@ -61,16 +61,17 @@ def listVideos(url, endDirectory=True):
     if 'class="teaser_list"' in content:
         content = content[content.find('class="teaser_list"'):]
         content = content[:content.find('</ul>')]
-
     spl = content.split('class="teaser"')
     for i in range(1, len(spl), 1):
         entry = spl[i]
+        if 'class="ad_label"' in entry:
+            continue
         match = re.compile('href="(.+?)"', re.DOTALL).findall(entry)
         url = match[0]
         match = re.compile('class="title">(.+?)<', re.DOTALL).findall(entry)
-        title = cleanTitle(match[0])
+        title = match[0]
         match = re.compile('src="(.+?)"', re.DOTALL).findall(entry)
-        thumb = match[0].replace("&amp;","&")
+        thumb = match[0].replace("&amp;", "&")
         addLink(title, url, 'playVideo', thumb)
     match = re.compile('jsb_MoreTeasersButton" data-jsb="url=(.+?)"', re.DOTALL).findall(contentMain)
     if match:
